@@ -1,23 +1,71 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Pyodide on GitHub Pages</title>
-    <script src="https://cdn.jsdelivr.net/pyodide/v0.25.0/full/pyodide.js"></script>
+  <meta charset="UTF-8" />
+  <title>Python Sandbox</title>
+  <!-- Pyodide for Python execution -->
+  <script src="https://cdn.jsdelivr.net/pyodide/v0.27.7/full/pyodide.js"></script>
+  <!-- Monaco Editor loader -->
+  <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.34.1/min/vs/loader.js"></script>
+  <style>
+    body, html { margin: 0; height: 100%; font-family: sans-serif; }
+    #editor { width: 100%; height: 70%; }
+    #run { width: 100%; padding: 0.5em; font-size: 1em; }
+    #output { width: 100%; height: 30%; padding: 0.5em; background: #f1f1f1; overflow: auto; }
+  </style>
 </head>
 <body>
-    <h1>Pyodide Example</h1>
-    <div id="output"></div>
-    <script>
-        async function main() {
-            let pyodide = await loadPyodide();
-            console.log("Pyodide is ready!");
-            let result = pyodide.runPython(`
-                import sys
-                sys.version
-            `);
-            document.getElementById("output").innerHTML = "Python version: " + result;
-        }
-        main();
-    </script>
+  <div id="editor"></div>
+  <button id="run">▶️ Run</button>
+  <pre id="output"></pre>
+
+  <script>
+    let pyodideReady;
+
+    // 1. Load Pyodide
+    async function initPyodide() {
+      pyodideReady = loadPyodide({
+        indexURL: "https://cdn.jsdelivr.net/pyodide/v0.27.7/full/"
+      });
+      await pyodideReady;
+      const py = await pyodideReady;
+      await py.loadPackage("micropip");
+      return py;
+    }
+
+    initPyodide();
+
+    // 2. Setup Monaco Editor
+    let editor;
+    require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.34.1/min/vs' } });
+    require(['vs/editor/editor.main'], () => {
+      editor = monaco.editor.create(document.getElementById('editor'), {
+        value: `# Welcome to the Python sandbox\nprint("Hello from Pyodide!")`,
+        language: 'python',
+        automaticLayout: true,
+        theme: 'vs-dark'
+      });
+    });
+
+    // 3. Wire up "Run" button
+    document.getElementById('run').onclick = async () => {
+      const code = editor.getValue();
+      const outputEl = document.getElementById('output');
+      outputEl.textContent = 'Running...\n';
+      try {
+        const py = await pyodideReady;
+        // Send stdout to output textarea
+        py.setStdout({
+          batched: (text) => outputEl.textContent += text
+        });
+        py.setStderr({
+          batched: (text) => outputEl.textContent += text
+        });
+        await py.runPythonAsync(code);
+      } catch (err) {
+        outputEl.textContent += err + "\n";
+      }
+    };
+  </script>
 </body>
 </html>
